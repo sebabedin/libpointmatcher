@@ -8,6 +8,10 @@ include(GNUInstallDirs) # populate CMAKE_INSTALL_{LIB,BIN}DIR
 #========================
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON) # add -fPIC as required
+#set(CMAKE_BUILD_TYPE Release CACHE STRING) # SEB: para mejorar la performance
+set(CMAKE_BUILD_TYPE Release CACHE STRING
+	"Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+	FORCE)
 
 # Extract version from header, done first to satisfy CMP0048,
 # see `cmake --help-policy CMP0048` for more information.

@@ -50,9 +50,20 @@ typedef Parametrizable::Parameters Parameters;
 typedef Parametrizable::ParameterDoc ParameterDoc;
 typedef Parametrizable::ParametersDoc ParametersDoc;
 
+#if 0 // SEB, codigo de Andres
+template<typename T>
+ErrorMinimizersImpl<T>::PointToPlaneWithCovErrorMinimizer::PointToPlaneWithCovErrorMinimizer(const Parameters& params):
+	ErrorMinimizer("PointToPlaneWithCovErrorMinimizer", PointToPlaneWithCovErrorMinimizer::availableParameters(), params),
+	force2D(Parametrizable::get<T>("force2D")),
+	sensorStdDev(Parametrizable::get<T>("sensorStdDev"))
+{
+}
+#endif
+
 template<typename T>
 PointToPlaneWithCovErrorMinimizer<T>::PointToPlaneWithCovErrorMinimizer(const Parameters& params):
 	PointToPlaneErrorMinimizer<T>(PointToPlaneWithCovErrorMinimizer::availableParameters(), params),
+        force2D(Parametrizable::get<T>("force2D")), // SEB
         sensorStdDev(Parametrizable::get<T>("sensorStdDev"))
 {
 }
@@ -63,7 +74,31 @@ typename PointMatcher<T>::TransformationParameters PointToPlaneWithCovErrorMinim
 	ErrorElements mPts = mPts_const;
     typename PointMatcher<T>::TransformationParameters out = PointToPlaneErrorMinimizer<T>::compute_in_place(mPts);
 
+
+#if 0 // SEB
+    if (force2D)
+    {
+			this->covMatrix = this->estimateCovariance2D(filteredReading, filteredReference, matches, outlierWeights, mOut);
+			//std::cout << this->covMatrix << std::endl;
+    }
+    else
+    {
+			this->covMatrix = this->estimateCovariance(filteredReading, filteredReference, matches, outlierWeights, mOut);
+    }
+#endif
+
+#if 0 // SEB, original
     this->covMatrix = this->estimateCovariance(mPts, out);
+#else
+    if (force2D)
+    {
+    	this->covMatrix = this->estimateCovariance2D(mPts, out);
+    }
+    else
+    {
+    	this->covMatrix = this->estimateCovariance(mPts, out);
+    }
+#endif
 
     return out;
 }
@@ -160,6 +195,148 @@ PointToPlaneWithCovErrorMinimizer<T>::estimateCovariance(const ErrorElements& mP
 
     return (sensorStdDev * sensorStdDev) * covariance;
 }
+
+#if 1 // SEB
+template<typename T>
+typename PointMatcher<T>::Matrix
+PointToPlaneWithCovErrorMinimizer<T>::estimateCovariance2D(const ErrorElements& mPts, const TransformationParameters& transformation)
+{
+#if 1 // SEB
+    const int max_nbr_point = mPts.reading.getNbPoints();
+
+    Matrix covariance(Matrix::Zero(3,3));
+
+    Matrix d2jX2(Matrix::Zero(3,3));
+    Matrix d2jpX(Matrix::Zero(3, max_nbr_point));
+    Matrix d2jqX(Matrix::Zero(3, max_nbr_point));
+
+    Vector reading_point(Vector::Zero(2));
+    Vector reference_point(Vector::Zero(2));
+    Vector normal(2);
+
+    Vector reading_direction(Vector::Zero(2));
+    Vector reference_direction(Vector::Zero(2));
+
+    Matrix normals = mPts.reference.getDescriptorViewByName("normals");
+#endif
+
+#if 1 // SEB
+
+    if (normals.rows() != 2)    // Make sure there are normals in DataPoints
+        return std::numeric_limits<T>::max() * Matrix::Identity(3,3);
+
+    T t_x = transformation(0,2);
+    T t_y = transformation(1,2);
+    T t_t = asin(transformation(1,0));
+
+    T sin_t = sin(t_t);
+    T cos_t = cos(t_t);
+
+    int valid_points_count = 0;
+#endif
+
+#if 1 // SEB
+    for(int i = 0; i < max_nbr_point; ++i)
+    {
+//        const int reference_idx = matches.ids(0,i);
+//        if (reference_idx != Matches::InvalidId && outlierWeights(0,i) > 0.0)
+//        {
+            reading_point = mPts.reading.features.block(0,i,2,1);
+            T reading_range = reading_point.norm();
+
+            if (reading_range > 0) // skip the case when reading_range is 0. TODO: check why this happens
+            {
+
+#endif
+
+#if 1 // SEB
+
+//            	LOG_WARNING_STREAM("4");
+            reference_point = mPts.reference.features.block(0,i,2,1);
+            normal = normals.block(0,i,2,1);
+
+            reading_direction = reading_point / reading_range;
+            T reference_range = reference_point.norm();
+            reference_direction = reference_point / reference_range;
+
+            T d2jx2 = 2*normal(0)*normal(0);
+            T d2jxy = 2*normal(0)*normal(1);
+            T d2jy2 = 2*normal(1)*normal(1);
+
+            T d2jxt = -2*normal(0)*(  normal(0)*(reading_range *reading_direction(1) *cos_t + reading_range * reading_direction(0) *sin_t )
+                                    - normal(1)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t));
+            T d2jyt = -2*normal(1)*(  normal(0)*(reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t)
+                                    - normal(1)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t));
+
+            T d2jt2 = 2*pow(normal(0)*(reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t) -
+                         normal(1)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t),2) -
+                      2*(normal(0)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t) +
+                         normal(1)*(reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t))
+                       *(  normal(0)*(t_x - reference_range*reference_direction(0) + reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t)
+                         + normal(1)*(t_y - reference_range*reference_direction(1) + reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t));
+
+            //f = (normal(0)*(t_x - reference_range*reference_direction(0) + reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t) + normal(1)*(t_y - reference_range*reference_direction(1) + reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t))^2
+
+            d2jX2 += (Matrix(3,3) << d2jx2, d2jxy, d2jxt,
+                                     d2jxy, d2jy2, d2jyt,
+                                     d2jxt, d2jyt, d2jt2).finished();
+
+            T d2jpx = -2*normal(0)*(normal(0)*reference_direction(0) + normal(1)*reference_direction(1));
+            T d2jpy = -2*normal(1)*(normal(0)*reference_direction(0) + normal(1)*reference_direction(1));
+            T d2jpt = 2*(  normal(0)*(reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t)
+                         - normal(1)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t))
+                       *(  normal(0)*reference_direction(0)
+                         + normal(1)*reference_direction(1));
+
+            T d2jqx = 2*normal(0)*(  normal(0)*(reading_direction(0)*cos_t - reading_direction(1)*sin_t)
+                                   + normal(1)*(reading_direction(1)*cos_t + reading_direction(0)*sin_t));
+            T d2jqy = 2*normal(1)*(  normal(0)*(reading_direction(0)*cos_t - reading_direction(1)*sin_t)
+                                   + normal(1)*(reading_direction(1)*cos_t + reading_direction(0)*sin_t));
+
+            T d2jqt = - 2*(  normal(0)*(reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t)
+                           - normal(1)*(reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t))
+                         *(normal(0)*(reading_direction(0)*cos_t - reading_direction(1)*sin_t) + normal(1)*(reading_direction(1)*cos_t + reading_direction(0)*sin_t))
+                      - 2*(normal(0)*(reading_direction(1)*cos_t + reading_direction(0)*sin_t) - normal(1)*(reading_direction(0)*cos_t - reading_direction(1)*sin_t))
+                         *(  normal(0)*(t_x - reference_range*reference_direction(0) + reading_range*reading_direction(0)*cos_t - reading_range*reading_direction(1)*sin_t)
+                           + normal(1)*(t_y - reference_range*reference_direction(1) + reading_range*reading_direction(1)*cos_t + reading_range*reading_direction(0)*sin_t));
+
+            d2jpX.block(0,valid_points_count,3,1 ) = (Vector(3) << d2jpx,d2jpy,d2jpt ).finished();
+            d2jqX.block(0,valid_points_count,3,1 ) = (Vector(3) << d2jqx,d2jqy,d2jqt ).finished();
+
+            valid_points_count++;
+#endif
+
+#if 1 // SEB
+        } // if (reading_range>0)
+//    } // if (outlierWeights(0,i) > 0.0)
+}
+
+#endif
+
+#if 1 // SEB
+    Matrix d2jZX(Matrix::Zero(3, 2 * valid_points_count));
+    d2jZX.block(0,0,3,valid_points_count) = d2jpX.block(0,0,3,valid_points_count);
+    d2jZX.block(0,valid_points_count,3,valid_points_count) = d2jqX.block(0,0,3,valid_points_count);
+
+    Matrix d2jX2_inv = d2jX2.inverse();
+
+//    Matrix covZ(Matrix::Identity(2*valid_points_count,2*valid_points_count));
+//    covZ *= (sensorStdDev * sensorStdDev);
+//            //sensorStdDev;//
+//
+//
+//    covariance = d2jZX * covZ * d2jZX.transpose();
+//    covariance = d2jX2_inv * covariance * d2jX2_inv;
+//
+//    return  covariance;
+    covariance = d2jZX * d2jZX.transpose();
+    covariance = d2jX2_inv * covariance * d2jX2_inv;
+
+
+    return (sensorStdDev * sensorStdDev) * covariance;
+#endif
+}
+#endif
 
 
 template<typename T>

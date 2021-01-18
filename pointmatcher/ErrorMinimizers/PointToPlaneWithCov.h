@@ -76,6 +76,7 @@ struct PointToPlaneWithCovErrorMinimizer: public PointToPlaneErrorMinimizer<T>
         };
     }
 
+    const T force2D; // SEB
     const T sensorStdDev;
     Matrix covMatrix;
 
@@ -83,6 +84,9 @@ struct PointToPlaneWithCovErrorMinimizer: public PointToPlaneErrorMinimizer<T>
     virtual TransformationParameters compute(const ErrorElements& mPts);
     virtual Matrix getCovariance() const;
     Matrix estimateCovariance(const ErrorElements& mPts, const TransformationParameters& transformation);
+#if 1 // SEB
+    Matrix estimateCovariance2D(const ErrorElements& mPts, const TransformationParameters& transformation);
+#endif
 };
 
 #endif

@@ -65,6 +65,7 @@ struct PointToPointWithCovErrorMinimizer: public PointToPointErrorMinimizer<T>
 	{
 		return {
 			{"sensorStdDev", "sensor standard deviation", "0.01", "0.", "inf", &P::Comp<T>}
+
 		};
 	}
 	
